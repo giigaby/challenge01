@@ -1,0 +1,55 @@
+on:
+  push:
+    branches:
+      - master
+jobs:
+  next_tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.get_next_tag.outputs.new_tag }}
+    steps:
+
+    - uses: actions/checkout@master
+      with:
+        fetch-depth: '0'
+
+    - name: Next tag
+      uses: anothrNick/github-tag-action@master
+      env:
+        DRY_RUN: true
+      id: get_next_tag
+
+  build_publish:
+    runs-on: ubuntu-latest
+    needs: next_tag
+    env:
+      version: ${{ needs.next_tag.outputs.tag }}
+    steps:
+    - uses: actions/checkout@master
+    
+    - name: set up jdk
+      uses: actions/setup-java@v1
+      with:
+        java-version: 11
+
+    - name: Build maven project 
+      run: mvn -B package --file pom.xml
+
+    - name: Deploy github package 
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN_PACKAGE }}
+      run: mvn deploy
+  
+  create_release_tag:
+    runs-on: ubuntu-latest
+    needs: [next_tag, build_publish]
+    steps:
+    - uses: actions/checkout@master
+    - name: Create Release and Tag
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN_RELEASE }}
+      with:
+        tag_name: ${{ needs.next_tag.outputs.tag }}
+        release_name: "Release: I don't know what to write here!"
